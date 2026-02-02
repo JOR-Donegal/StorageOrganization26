@@ -1,50 +1,13 @@
-# SAN Anatomy
-The SAN storage controller has several sub-systems. Controllers or their subsystems will always be redundant. There are a lot of very specialised terms, and they're used differently in different equipment and from different vendors. I'm going to describe some of those terms here.
+# File Storage
 
-## Front End
+In simple computer systems, it's possible to store Data as raw bites, directly on the storage medium. For example, when we load an operating system, we may just have a jump instruction to a sector from which we can start loading. But that approach will not scale and will not deal with complexity.
 
-The front-end provides an interface between _compute_ (the host) and storage and has ports/interfaces to the physical network, it could be Ethernet, _Infiniband_ or _Fibre Channel_ and there will be multiple ports for redundancy, load-balancing or _Multipath Input Output_ (MPIO).
+As disks became a ubiquitous storage mechanism for computers, a level of complexity was required. Although we now use the term operating system, in the 1970s and 1980s we referred to the _disk operating system_ (DOS). There was a close coupling between the _BIOS_ on the motherboard, the disk technology, and the disk operating system utilized by the end user. The unit of interaction for the end user was the file. In the world of personal computers, __config.sys__ configured the operating system, __autoexec.bat__ loaded programmes on startup, and those programmes were individual _executable_ files perhaps with their own configuration files. User data was held in unique files with well-defined extensions, to declare what those file types were. We still use extensions to this day in Windows based operating systems. A __.bat__ file is still a list of instructions that can be carried out at the command prompt. A __.doc__ file is probably a Microsoft Word file. 
 
-## Cache
-Cache is critical for performance. Magnetic Hard Disk Drives (HDDs) are slow in terms of access time. Cache can dramatically improve this performance. SANs can use _hierarchical storage_, where both SSDs and DRAM are used to cache data, with HDDs providing capacity and SSDs/DRAM providing caching and performance.
+Notably we can use extensions in Linux to denote file types to us human users. But in Linux they have no significance for the operating system.
 
-## Read Operations
-When data is cached, it has an associated tag, part of the main memory address used to track blocks of data in the cache. On read, the storage controller reads the tag entries to verify is the requested data is already in cache. If it is, that is a _cache hit_ and the response is immediate (in milliseconds) without any call to the backend storage system.
+Even in the simplest operating system, we need a way of tracking and finding those files. We need a _directory listing_, a list of all the files, some properties, and a pointer as to where to find them. We use the term _metadata_ to describe this kind of information. Most files will be bigger than a single sector, in these cases we will need some sort of pointer array as to where to find the sequence of sectors which makes up the file.
 
-<figure>
-<img src = "https://jor-donegal.github.io/StorageOrganization26/images/fig4.avif">
-<figcaption>Fig 4. Model SAN front end cache.</figcaption>
-</figure>
+Where we have many files, we need to sort them based on some non-arbitrary relevance. In an office, we would group documents into box files. In a file system we group into _directories_. This way of doing things grew organically since the 1970s. It does not scale well and unless users are very disciplined it quickly becomes unmanageable. And an unmanaged file system is a serious risk under GDPR. We should no longer base anything other than trivial storage on this simple way of holding data.
 
-In the event of a _cache miss_, the backend reads data from disk and cache before a response. The read-hit ratio is the overall figure.
-
-_Read Hit Ratio = Cache Hits / Total Reads_
-
-<figure>
-<img src = "https://jor-donegal.github.io/StorageOrganization26/images/fig5.avif">
-<figcaption>Fig 5. Model SAN cache miss.</figcaption>
-</figure>
-
-When sequential reads are occurring, the cache controller will anticipate and do _pre-fetch_ or _read-ahead_, loading blocks which have not yet been requested into the cache. Where I/O requests are fixed in size fixed length prefetch matches these I/O block sizes, there can also be variable length prefetch. _Maximum prefetch_ specifies how much cache can be used for prefetch.
-
-## Write Operations
-
-The host writes to the SAN and receives an acknowledgement. Data could be written all the way to the _backing store_, this _write-through_ strategy gives the lowest risk of data loss or corruption, but poor performance. Data can be written to two separate caches in _cache mirroring_, to prevent data loss in the event of cache failure, but this introduces another potential issue, _cache coherency_; different, inconsistent data in different caches.
-
-Writing to cache is obviously quicker than writing to the backing storage, the SAN controller can acknowledge the write and commit or _de-stage_ several writes to the backing store as it becomes convenient; this is a _write-back cache_ and will perform better, although any failure to write to backing storage could cause data loss or corruption.
-
-Very large writes could bypass the cache rather than congest it. If a write exceeds the _write aside size_, it is written directly, the cache is kept free for small, random I/O. Cache can be dedicated for read and write or pooled as a _global cache_, and dynamically allocated.
-
-In the event of power failure, cache can be maintained by battery, but on a large system, there is still the risk of the battery being expended before writes can occur. Dedicated disks can be provided for cache to write to, this is called _cache vaulting_.     
-
-## Cache Management
-The performance of cache is dependent on the quality of the management algorithms used. The _Least Recently Used_ (LRU) approach selects pages which have not been recently used and discards them first, as they are no longer needed. The _Most Recently Used_ (MRU) approach selects pages which have been used to discard, as they are no longer needed!
-
-Pages written to cache but not to the backing store are _dirty pages_. At a certain point when many dirty pages are ready to be written, cache must be _flushed_; dirty pages written to the backing store. This is called _high-water mark flushing_. When enough pages have been flushed a cache can stop flushing, this is the _low-water mark_. Between these two levels, the cache is flushed opportunistically when the controller is otherwise idle, this is called _idle flushing_. In the event that the cache becomes 100% full and congested, _forced flushing_ occurs, where I/O may be throttled to allow the cache to clear. This will negatively effect performance.
-
-## Back End
-The backend interfaces with the storage devices over typical busses, SATA, SCSI, SAS, Fibre Channel, etc. and there may be an option to mix drives. In hierarchical storage, there may be trays of drives with different performance and functions.
-
-There may be dual backend controllers and they have ports/interfaces to the physical drives. There will be dual ports per backend controller for redundancy and load balancing and enterprise drives may also be dual-ported.
-
-The backend will provide some limited buffering and will perform error checking, correcting (ECC) and implement any storage strategy like RAID. 
+There has been a long history a file system types, and in a later set of notes, I'll deal with the more important ones and some of their characteristics.
